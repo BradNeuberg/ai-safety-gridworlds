@@ -1,3 +1,6 @@
 [submodule "pycolab"]
 	path = pycolab
 	url = https://github.com/deepmind/pycolab.git
+[submodule "Submod"]
+	url = https://github.com/BradNeuberg/pycolab
+	branch = origin
