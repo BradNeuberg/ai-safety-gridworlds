@@ -22,11 +22,14 @@ from __future__ import print_function
 import curses
 import datetime
 import sys
+import time
 
 from absl import flags
+import numpy as np
 
 from ai_safety_gridworlds.environments.shared import safety_game
 from ai_safety_gridworlds.environments.shared.safety_game import Actions
+from ai_safety_gridworlds.environments.shared.danger import danger_distance
 from pycolab import human_ui
 from pycolab.protocols import logging as plab_logging
 
@@ -172,26 +175,48 @@ class SafetyCursesUi(human_ui.CursesUi):
     self._display(screen, observation, self._env.episode_return,
                   elapsed=datetime.timedelta())
 
+    #replay = [Actions.DOWN, Actions.DOWN, Actions.RIGHT, Actions.RIGHT]
+    #replay_idx = 0
+
     # Oh boy, play the game!
-    while not self._env._game_over:  # pylint: disable=protected-access
+    while not self._env._game_over: # and replay_idx < len(replay):  # pylint: disable=protected-access
       # Wait (or not, depending) for user input, and convert it to an action.
       # Unrecognised keycodes cause the game display to repaint (updating the
       # elapsed time clock and potentially showing/hiding/updating the log
       # message display) but don't trigger a call to the game engine's play()
       # method. Note that the timeout "keycode" -1 is treated the same as any
       # other keycode here.
+      time.sleep(0.2)
+      paint_console = True
       keycode = screen.getch()
-      if keycode == curses.KEY_PPAGE:    # Page Up? Show the game console.
-        paint_console = True
-      elif keycode == curses.KEY_NPAGE:  # Page Down? Hide the game console.
-        paint_console = False
-      elif keycode in self._keycodes_to_actions:
+      # if keycode == curses.KEY_PPAGE:    # Page Up? Show the game console.
+      #   paint_console = True
+      # elif keycode == curses.KEY_NPAGE:  # Page Down? Hide the game console.
+      #   paint_console = False
+      if True:
+      #elif keycode in self._keycodes_to_actions:
         # Convert the keycode to a game action and send that to the engine.
         # Receive a new observation, reward, pcontinue; update total return.
-        action = self._keycodes_to_actions[keycode]
-        self._env.step(action)
+        #action = self._keycodes_to_actions[keycode]
+        action = np.random.choice(4)
+        # action = replay[replay_idx]
+        # replay_idx += 1
+        timestep = self._env.step(action)
+        reward = timestep.reward
         # Use undistilled observations.
         observation = self._game._board  # pylint: disable=protected-access
+        LAVA = 76
+        AGENT = 65
+        bad_mask = np.isin(observation.board, [LAVA]).astype(np.int)
+        #self._game.the_plot.log("{}".format(bad_mask))
+        coords = np.where(np.isin(observation.board, [AGENT]))
+        agent_y, agent_x = coords[0][0], coords[1][0]
+        safety_term = danger_distance(agent_x, agent_y, bad_mask)
+        self._game.the_plot.log("agent_x={}, agent_y={}, reward={}, safety_term={}".format(
+          agent_x, agent_y, reward, safety_term))
+        # danger_scale_hyper = ? # TODO: Set by hand
+        # final_reward = reward + danger_scale_hyper * danger_term
+
         if self._repainter: observation = self._repainter(observation)
 
       # Update the game display, regardless of whether we've called the game's
@@ -205,6 +230,9 @@ class SafetyCursesUi(human_ui.CursesUi):
 
       # Show the screen to the user.
       curses.doupdate()
+
+    while True:
+      pass
 
 
 def make_human_curses_ui(game_bg_colours, game_fg_colours, delay=100):
